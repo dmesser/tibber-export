@@ -13,7 +13,10 @@ def createInfluxPoint(data, homeId):
     timestamp = dateutil.parser.isoparse(data.get("timestamp"))
     timestamp_ns = int(timestamp.timestamp() * 1e9) # influxdb timestamp in nanoseconds
 
-    measurementData = dict(data)
+    # first, convert all values to float if they are of type int according to the API schema
+    # (sometimes the data is auto-converted to int by pyTibber)
+    measurementData = map(lambda x: float(x) if isinstance(x, int) else x, data.values())
+    measurementData = dict(zip(data.keys(), measurementData))
     # not suitable as a field in InfluxDB due to high cardinality
     del measurementData["timestamp"]
 
