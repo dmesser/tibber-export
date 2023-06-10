@@ -1,12 +1,13 @@
 import os
 import sys
-import json
 import asyncio
 import aiohttp
 import dateutil.parser
 import tibber
 from influxdb import InfluxDBClient
 from functools import partial
+import signal
+
 
 
 def createInfluxPoint(data, homeId):
@@ -56,7 +57,22 @@ async def process_measurements(apiEndpoint, apiToken, influxClient):
     while True:
         await asyncio.sleep(5)
 
+
+def sigterm_handler(signal, frame):
+    print("Received SIGTERM signal. Exiting gracefully...")
+    loop = asyncio.get_running_loop()
+    tasks = asyncio.all_tasks(loop=loop)
+
+    for task in tasks:
+        task.cancel()
+
+    loop.stop()
+    
+    sys.exit(0)
+
 if __name__ == '__main__':
+    # Set the SIGTERM signal handler
+    signal.signal(signal.SIGTERM, sigterm_handler)
 
     influxHost = os.getenv("INFLUXDB_HOST")
     influxPort = os.getenv("INFLUXDB_PORT")
