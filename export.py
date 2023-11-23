@@ -3,12 +3,14 @@ import os
 import signal
 import sys
 from functools import partial
+import time
 
 import aiohttp
 import dateutil.parser
 import tibber
 from influxdb import InfluxDBClient
 
+last_measurement_time = 0
 
 def createInfluxPoint(data, homeId):
     timestamp = dateutil.parser.isoparse(data.get("timestamp"))
@@ -35,6 +37,7 @@ def writeMeasurement(influxClient: InfluxDBClient, homeId: str, measurement: dic
 
 
 def process_measurement(influxClient: InfluxDBClient, homeId: str, measurement: dict):
+    global last_measurement_time
     data = measurement.get("data")
     if (
         data is None
@@ -45,9 +48,10 @@ def process_measurement(influxClient: InfluxDBClient, homeId: str, measurement: 
         raise Exception("Invalid measurement received %s" % measurement)
 
     writeMeasurement(influxClient, homeId, data.get("liveMeasurement"))
+    last_measurement_time = time.time()
 
 
-async def process_measurements(apiEndpoint, apiToken, influxClient):
+async def tibber_connection(apiEndpoint, apiToken):
     async with aiohttp.ClientSession() as session:
         tibber_connection = tibber.Tibber(
             api_endpoint=apiEndpoint,
@@ -56,13 +60,43 @@ async def process_measurements(apiEndpoint, apiToken, influxClient):
             user_agent="tibber-export",
         )
         await tibber_connection.update_info()
-    home = tibber_connection.get_homes()[0]
 
-    callback = partial(process_measurement, influxClient, home.home_id)
-    await home.rt_subscribe(callback)
+        return tibber_connection
+
+async def process_measurements(apiEndpoint, apiToken, influxClient):
+    global last_measurement_time
+    conn = None
 
     while True:
-        await asyncio.sleep(5)
+        if conn is not None and last_measurement_time > 0:
+            if time.time() - last_measurement_time < 60:
+                # Measurement received less than 60 seconds ago. Continuing...
+                await asyncio.sleep(5)
+                continue
+            else:
+                print("No measurements received for 60 seconds. Restarting connection...")
+                print("Closing old connection...")
+                await conn.close_connection()
+                conn = None
+        else:
+            if conn is not None:
+                print("Closing old connection...")
+                await conn.close_connection()
+                conn = None
+
+            print("Starting new connection...")    
+            try:
+                conn = await tibber_connection(apiEndpoint, apiToken)
+
+                home = conn.get_homes()[0]
+
+                callback = partial(process_measurement, influxClient, home.home_id)
+                await home.rt_subscribe(callback)
+                await asyncio.sleep(15)
+            except:
+                print("Exception caught while connecting to Tibber. Retrying in 5 seconds...")
+                await asyncio.sleep(5)
+                continue
 
 
 def sigterm_handler(signal, frame):
