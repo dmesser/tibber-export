@@ -93,7 +93,7 @@ async def process_measurements(apiEndpoint, apiToken, influxClient):
                 callback = partial(process_measurement, influxClient, home.home_id)
                 await home.rt_subscribe(callback)
                 await asyncio.sleep(15)
-            except e:
+            except Exception as e:
                 print("Exception caught while connecting to Tibber. Retrying in 5 seconds...")
                 print(e)
                 await asyncio.sleep(5)
