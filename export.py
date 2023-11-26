@@ -51,10 +51,9 @@ def process_measurement(influxClient: InfluxDBClient, homeId: str, measurement: 
     last_measurement_time = time.time()
 
 
-async def tibber_connection(apiEndpoint, apiToken):
+async def tibber_connection(apiToken):
     async with aiohttp.ClientSession() as session:
         tibber_connection = tibber.Tibber(
-            api_endpoint=apiEndpoint,
             access_token=apiToken,
             websession=session,
             user_agent="tibber-export",
@@ -63,7 +62,7 @@ async def tibber_connection(apiEndpoint, apiToken):
 
         return tibber_connection
 
-async def process_measurements(apiEndpoint, apiToken, influxClient):
+async def process_measurements(apiToken, influxClient):
     global last_measurement_time
     conn = None
 
@@ -86,7 +85,7 @@ async def process_measurements(apiEndpoint, apiToken, influxClient):
 
             print("Starting new connection...")    
             try:
-                conn = await tibber_connection(apiEndpoint, apiToken)
+                conn = await tibber_connection(apiToken)
 
                 home = conn.get_homes()[0]
 
@@ -122,7 +121,6 @@ if __name__ == "__main__":
     influxDB = os.getenv("INFLUXDB_DB")
     influxUser = os.getenv("INFLUXDB_USER")
     influxPassword = os.getenv("INFLUXDB_PASSWORD")
-    tibberApi = os.getenv("TIBBER_API_ENDPOINT")
     tibberToken = os.getenv("TIBBER_API_TOKEN")
 
     if None in (
@@ -131,13 +129,12 @@ if __name__ == "__main__":
         influxDB,
         influxUser,
         influxPassword,
-        tibberApi,
         tibberToken,
     ):
         print("Incomplete configuration", file=sys.stderr)
         exit(1)
     else:
-        print("Retrieving power data from Tibber GraphQL endpoint at %s" % tibberApi)
+        print("Retrieving power data from Tibber GraphQL endpoint")
         print(
             "Sending telemetry to InfluxDB %s on port %s using TLS as user %s using database %s"
             % (influxHost, influxPort, influxUser, influxDB)
@@ -156,7 +153,7 @@ if __name__ == "__main__":
             )
 
             loop = asyncio.get_event_loop()
-            loop.run_until_complete(process_measurements(tibberApi, tibberToken, influxClient))
+            loop.run_until_complete(process_measurements(tibberToken, influxClient))
         except Exception as e:
             print("Exception caught: %s" % e, file=sys.stderr)
         finally:
