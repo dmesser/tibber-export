@@ -3,7 +3,6 @@ import os
 import signal
 import sys
 from functools import partial
-import time
 
 import aiohttp
 import dateutil.parser
@@ -74,7 +73,14 @@ async def process_measurements(apiToken, influxClient):
     except Exception as e:
         print("Exception caught while reading Tibber API:")
         print(e)
-        await asyncio.sleep(5)
+    finally:
+        print("Closing connection...")
+        if conn:
+            conn.rt_disconnect()
+            conn.close_connection() # close the connection to the API
+
+        print("Sleeping 30 seconds...")
+        await asyncio.sleep(30)
 
 
 def sigterm_handler(signal, frame):
