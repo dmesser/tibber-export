@@ -45,25 +45,19 @@ def process_measurement(influxClient: InfluxDBClient, homeId: str, measurement: 
 
     writeMeasurement(influxClient, homeId, data.get("liveMeasurement"))
 
-
-async def tibber_connection(apiToken):
-    async with aiohttp.ClientSession() as session:
-        tibber_connection = tibber.Tibber(
-            access_token=apiToken,
-            websession=session,
-            user_agent="tibber-export",
-        )
-        await tibber_connection.update_info()
-
-        return tibber_connection
-
 async def process_measurements(apiToken, influxClient):
 
     print("Starting new connection...")    
     try:
-        conn = await tibber_connection(apiToken)
+        async with aiohttp.ClientSession() as session:
+            tibber_connection = tibber.Tibber(
+                access_token=apiToken,
+                websession=session,
+                user_agent="tibber-export",
+            )
+            await tibber_connection.update_info()
 
-        home = conn.get_homes()[0]
+        home = tibber_connection.get_homes()[0]
 
         callback = partial(process_measurement, influxClient, home.home_id)
         await home.rt_subscribe(callback)
@@ -75,9 +69,9 @@ async def process_measurements(apiToken, influxClient):
         print(e)
     finally:
         print("Closing connection...")
-        if conn:
-            conn.rt_disconnect()
-            conn.close_connection() # close the connection to the API
+        if tibber_connection:
+            tibber_connection.rt_disconnect()
+            tibber_connection.close_connection() # close the connection to the API
 
         print("Sleeping 30 seconds...")
         await asyncio.sleep(30)
