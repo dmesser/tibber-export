@@ -82,27 +82,27 @@ async def process_measurements(apiToken, influxClient):
             )
             await tibber_connection.update_info()
 
-        home = tibber_connection.get_homes()[0]
+            home = tibber_connection.get_homes()[0]
 
-        callback = partial(process_measurement, influxClient, home.home_id)
-        await home.rt_subscribe(callback)
+            callback = partial(process_measurement, influxClient, home.home_id)
+            await home.rt_subscribe(callback)
 
-        while True:
-            try:
-                # Call a method that uses the Tibber connection to detect if it is still alive
-                await tibber_connection.update_info()
-            except RuntimeError as e:
-                if str(e) == "Session is closed":
-                    logging.error("Session is closed, reconnecting...")
-                    break  # Break the inner loop to create a new session
-            await asyncio.sleep(60)
+            while True:
+                try:
+                    # Call a method that uses the Tibber connection to detect if it is still alive
+                    await tibber_connection.update_info()
+                except RuntimeError as e:
+                    if str(e) == "Session is closed":
+                        logging.error("Session is closed, reconnecting...")
+                        break  # Break the inner loop to create a new session
+                await asyncio.sleep(60)
     except Exception as e:
         logging.exception("Exception caught while processing measurements")
     finally:
         logging.info("Closing connection...")
         if tibber_connection:
-            tibber_connection.rt_disconnect()
-            tibber_connection.close_connection()  # close the connection to the API
+            await tibber_connection.rt_disconnect()
+            await tibber_connection.close_connection()  # close the connection to the API
 
         logging.info("Sleeping 30 seconds...")
         await asyncio.sleep(30)
