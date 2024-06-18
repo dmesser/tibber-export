@@ -82,10 +82,16 @@ async def process_measurements(apiToken, influxClient):
             )
             await tibber_connection.update_info()
 
-            home = tibber_connection.get_homes()[0]
+            for home in tibber_connection.get_homes():
+                logging.info("Found tibber home %s", home.home_id)
 
-            callback = partial(process_measurement, influxClient, home.home_id)
-            await home.rt_subscribe(callback)
+                await home.update_info()
+
+                if home.has_real_time_consumption:
+                    logging.info("Home %s has real time consumption", home.home_id)
+
+                    callback = partial(process_measurement, influxClient, home.home_id)
+                    await home.rt_subscribe(callback)
 
             while True:
                 try:
